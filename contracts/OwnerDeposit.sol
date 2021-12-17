@@ -1,6 +1,7 @@
 pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetMinterPauser.sol";
@@ -8,13 +9,14 @@ import "hardhat/console.sol";
 
 
 contract OwnerDeposit {
-
+    
     receive() external payable {
         stake();
     }
     // Balances of the user's stacked funds
     mapping(address => uint256) public balances;
-
+    
+    address public usdc = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174;
     // Staking threshold
     // uint256 public constant threshold = 1 ether;
 
@@ -33,6 +35,16 @@ contract OwnerDeposit {
     function stake() public payable {
         //require at least 1000 USDC
         // update the user's balance
+        balances[msg.sender] += msg.value;
+        // if (address(this).balance >= threshold) {
+        //     // isActive = true;
+        // }
+        // emit the event to notify the blockchain that we have correctly Staked some fund for the user
+        emit Stake(msg.sender, msg.value);
+    }
+
+    function stakeUSDC() public payable {
+
         balances[msg.sender] += msg.value;
         // if (address(this).balance >= threshold) {
         //     // isActive = true;
