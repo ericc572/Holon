@@ -1,6 +1,6 @@
 const hre = require("hardhat");
 async function main() {
-  const NFT = await hre.ethers.getContractFactory("MyNFT");
+  const NFT = await hre.ethers.getContractFactory("HolonSecDeposit");
   const CONTRACT_ADDRESS = "0x222E84E6e12783cEB67af6701Ba57Aaf022bEAfe"
   const contract = NFT.attach(CONTRACT_ADDRESS);
   const owner = await contract.ownerOf(1);

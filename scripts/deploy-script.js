@@ -8,10 +8,21 @@
 const hre = require("hardhat");
 
 async function main() {
-  const NFT = await hre.ethers.getContractFactory("MyNFT");
-  const nft = await NFT.deploy();
-  await nft.deployed();
-  console.log("NFT deployed to:", nft.address);
+  const [deployer] = await hre.ethers.getSigners();
+  const accountBalance = await deployer.getBalance();
+
+  console.log('Deploying contracts with account: ', deployer.address);
+  console.log('Account balance: ', accountBalance.toString());
+
+  // const HSD = await hre.ethers.getContractFactory("HolonSecDeposit");
+  // const hsd = await HSD.deploy();
+  // await hsd.deployed();
+  // console.log("HolonSecDeposit deployed to:", hsd.address);
+
+  const OD = await hre.ethers.getContractFactory("OwnerDeposit");
+  const od = await OD.deploy();
+  await od.deployed();
+  console.log("OwnerDeposit deployed to:", od.address);
 }
 
 main().then(() => process.exit(0)).catch(error => {

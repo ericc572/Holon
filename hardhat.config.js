@@ -24,7 +24,7 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
     hardhat: {
     },
     matic: {
-      url: "https://rpc-mumbai.maticvigil.com",
+      url: "https://polygon-mumbai.g.alchemy.com/v2/eA9f7oGCz2fl3qapdfOGQn-RIF5lTVSl",
       accounts: [PRIVATE_KEY]
     }
   },
