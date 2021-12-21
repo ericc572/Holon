@@ -8,10 +8,6 @@ import "hardhat/console.sol";
 
 
 contract OwnerDeposit {
-
-    receive() external payable {
-        stake();
-    }
     // Balances of the user's stacked funds
     mapping(address => uint256) public balances;
 
@@ -33,16 +29,21 @@ contract OwnerDeposit {
     function stake() public payable {
         //require at least 1000 USDC
         // update the user's balance
-        balances[msg.sender] += msg.value;
+        uint256 amt = msg.value;
+        balances[msg.sender] += amt;
         // if (address(this).balance >= threshold) {
         //     // isActive = true;
         // }
         // emit the event to notify the blockchain that we have correctly Staked some fund for the user
-        emit Stake(msg.sender, msg.value);
+        emit Stake(msg.sender, amt);
     }
 
     function viewBalance() public view returns (uint256) {
         return balances[msg.sender];
+    }
+
+    function viewBalanceOf(address who) public view returns (uint256) {
+        return balances[who];
     }
 
     function withdraw(address payable addr) public {
