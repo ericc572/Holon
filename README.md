@@ -41,7 +41,17 @@ npx hardhat run scripts/deploy-script.js --network matic
 ```
 
 ## Testing
-Switch to hardhat local blockchain, then do:
+
+Set up tests.
+
+First, go to `hardhat.config.js`. Change the value of `defaultNetwork` from `matic` to `localhost`.
+In a separate terminal tab, run 
+
+```
+npx run node
+```
+
+Now run your tests. use `.only` to isolate describe/it blocks.
 
 ```
 npx run test
@@ -50,17 +60,6 @@ npx run test
 To obtain Testnet Mumbai tokens:
 [visit this link](https://faucet.matic.network/)
 
-### To switch to using hardhat local blockchain
-
-- go to `hardhat.config.js`
-- comment out the following code:
-```
-matic: {
-  url: "https://rpc-mumbai.maticvigil.com",
-  accounts: [PRIVATE_KEY]
-}
-```
-- change the value of `defaultNetwork` from `matic` to `hardhat`.
 
 # Contributing
 
