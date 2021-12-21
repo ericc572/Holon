@@ -19,15 +19,16 @@ contract OwnerDeposit {
     event Stake(address indexed sender, uint256 amount);
     event Withdraw(address sender, uint256 amount);
 
-    constructor() public {
-        // what should we do on deploy?
-    }
+    // constructor() public {
+    //     // what should we do on deploy?
+    // }
 
     /**
     * @notice Stake method that update the user's balance
     */
     function stake() public payable {
         //require at least 1000 USDC
+
         // update the user's balance
         uint256 amt = msg.value;
         balances[msg.sender] += amt;

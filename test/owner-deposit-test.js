@@ -1,10 +1,10 @@
 const { expect } = require("chai");
-const {
-  BN,           // Big Number support
-  constants,    // Common constants, like the zero address and largest integers
-  expectEvent,  // Assertions for emitted events
-  expectRevert, // Assertions for transactions that should fail
-} = require('@openzeppelin/test-helpers');
+// const {
+//   BN,           // Big Number support
+//   constants,    // Common constants, like the zero address and largest integers
+//   expectEvent,  // Assertions for emitted events
+//   expectRevert, // Assertions for transactions that should fail
+// } = require('@openzeppelin/test-helpers');
 
 describe.only("OwnerDeposit Contract", function () {
 
@@ -18,32 +18,26 @@ describe.only("OwnerDeposit Contract", function () {
 
   //test stake function
   it("successfully deposits an amount", async function () {
+    const amt = 10 ** 10;
+    await depositContract.connect(owner).stake({value: amt });
 
-    await depositContract
-          .connect(owner)
-          .stake({value: 10 ** 10 });
-
-    console.log(await depositContract.viewBalanceOf(owner.address).toString());
-
-    // expect(
-    //   await depositContract.viewBalanceOf(owner.address)
-    // ).to.eq(10 ** 10);
+    expect(
+      await depositContract.viewBalanceOf(owner.address)
+    ).to.eq(amt);
 
   });
 
-  // it("can successfully withdraw an amount", async function () {
-  //   console.log(10 ** 10);
-  //   await depositContract
-  //         .connect(owner)
-  //         .stake({ value: 10 ** 10 });
+  it("can successfully withdraw an amount", async function () {
+    const amt = 10 ** 10;
+    await depositContract.connect(owner).stake({value: amt });
 
-  //   console.log(await depositContract.viewBalanceOf(owner.address));
+    await depositContract.withdraw(owner.address)
 
-    // expect(
-    //   await depositContract.viewBalanceOf(owner.address)
-    // ).to.eq(10 ** 10);
+    expect(
+      await depositContract.viewBalanceOf(owner.address)
+    ).to.eq(0);
 
-  // });
+  });
 
 //test withdraw function
 });
