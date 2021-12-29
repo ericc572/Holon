@@ -3,9 +3,11 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 contract StayManager is ERC721, Ownable {
     using Counters for Counters.Counter;
+    using EnumerableSet for EnumerableSet.UintSet;
     Counters.Counter private _stayIds;
     Counters.Counter private _gstayIds;
     Counters.Counter private _hstayIds;
@@ -28,8 +30,8 @@ contract StayManager is ERC721, Ownable {
     string private depositError = "Must deposit .001 MATIC.";
 
     mapping(uint256 => Stay) public stays;
-    uint256[] public stayIds;
-    uint256 public totalStays = 0;    
+    EnumerableSet.UintSet private stayIds;  
+    mapping(address => uint256) public hostActiveStays;
 
     // Contract's Events
     event Deposit(address indexed sender, uint256 amount);
@@ -50,6 +52,7 @@ contract StayManager is ERC721, Ownable {
 
     function withdrawDeposit() public {
         require(depositBalances[msg.sender] >= 0, "No deposit to withdraw");
+        require(hostActiveStays[msg.sender] == 0, "Cannot withdraw despoit unless 0 active stays.");
         uint256 amount = depositBalances[msg.sender];
         depositBalances[msg.sender] = 0;
         payable(msg.sender).transfer(amount);
@@ -66,9 +69,29 @@ contract StayManager is ERC721, Ownable {
 
         uint256 securityDeposit = payment / _securityDepositDivisor;
         stays[stayId] = Stay(stayId, msg.sender, address(0), true, 0, 0, payment, securityDeposit);
-        stayIds.push(stayId);
-        totalStays++;
+        stayIds.add(stayId);
+        hostActiveStays[msg.sender]++;
 
         return stayId;
+    }
+
+    function removeListing(uint256 stayId) public {
+        require(stayIds.contains(stayId), "Attempted to delist a stayId that doesn't exist.");
+        require(stays[stayId].host == msg.sender, "Only host can remove listing.");
+        _delist(stayId);
+    }
+
+    function _delist(uint256 stayId) internal {
+        hostActiveStays[stays[stayId].host]--;
+        delete stays[stayId];
+        stayIds.remove(stayId);
+    }
+
+    function getNumStays() public view returns (uint256){
+        return stayIds.length();
+    }
+
+    function getStayId(uint index) public view returns (uint256){
+        return stayIds.at(index);
     }
 }

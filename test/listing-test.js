@@ -37,14 +37,14 @@ describe.only("StayManager Contract", function () {
   });
 
   //test list function before depositing
-  it("successfully deposits an amount and lists stay", async function () {
+  it("successfully deposits an amount, lists stay, and isn't able to withdraw", async function () {
     const amt = 10 ** 10;
     await contract.connect(host).deposit({value: amt});
     assert.equal(await contract.depositBalances(host.address), amt);
     
     const payment = 1000;
     await contract.connect(host).list(payment);
-    stayId = await contract.stayIds(0)
+    stayId = await contract.getStayId(await contract.getNumStays() - 1)
     res = await contract.stays(stayId);
     assert.equal(res[1], host.address);
     assert.equal(res[2], 0);
@@ -53,6 +53,12 @@ describe.only("StayManager Contract", function () {
     assert.equal(res[5], 0);
     assert.equal(res[6], payment);
     assert.equal(res[7], payment / 2);
+
+    await truffleAssert.fails(
+        contract.connect(host).withdrawDeposit(),
+        truffleAssert.ErrorType.REVERT,
+        "Cannot withdraw despoit unless 0 active stays."
+    );
   });
 
   it("can successfully withdraw an amount", async function () {
@@ -67,5 +73,20 @@ describe.only("StayManager Contract", function () {
 
   });
 
-//test withdraw function    
+  it("can successfully withdraw an amount after listing and delisting", async function () {
+    const amt = 10 ** 10;
+    await contract.connect(host).deposit({value: amt });
+    const payment = 1000;
+    await contract.connect(host).list(payment);
+    stayId = await contract.getStayId(await contract.getNumStays() - 1)
+    await contract.connect(host).removeListing(stayId)
+    await contract.withdrawDeposit()
+
+    expect(
+      await contract.depositBalances(host.address)
+    ).to.eq(0);
+    assert.equal(await contract.getNumStays(), 0);
+    assert.equal(await contract.hostActiveStays(host.address), 0);
+  });
+
 });
