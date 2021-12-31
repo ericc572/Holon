@@ -33,7 +33,6 @@ contract StayManager is ERC721URIStorage, Ownable {
 
     mapping(address => uint256) public depositBalances;
     uint256 private _requiredDeposit;
-    string private _depositError = "User has not deposited.";
 
     mapping(uint256 => Stay) public stays;
     EnumerableSet.UintSet private stayIds;  
@@ -42,6 +41,7 @@ contract StayManager is ERC721URIStorage, Ownable {
     // Contract's Events
     event Deposit(address indexed sender, uint256 amount);
     event WithdrawDeposit(address sender, uint256 amount);
+    event Listing(address host, uint256 stayId);
 
     constructor(uint256 requiredDeposit) ERC721("StayManager", "HolonStayManager") {
         _requiredDeposit = requiredDeposit;
@@ -66,23 +66,23 @@ contract StayManager is ERC721URIStorage, Ownable {
         uint256 amount = depositBalances[msg.sender];
         depositBalances[msg.sender] = 0;
         _usdcContract.safeTransfer(msg.sender, amount);
+
+        emit WithdrawDeposit(msg.sender, amount);
     }
 
-    function list(uint256 payment) 
+    function list(uint256 payment, uint256 securityDeposit) 
         public 
-        returns (uint256)
     {
-        require(depositBalances[msg.sender] >= _requiredDeposit, _depositError);
+        require(depositBalances[msg.sender] >= _requiredDeposit, "User has not deposited.");
 
         _stayIds.increment();
         uint256 stayId = _stayIds.current();
 
-        uint256 securityDeposit = payment / _securityDepositDivisor;
         stays[stayId] = Stay(stayId, msg.sender, address(0), true, 0, 0, payment, securityDeposit);
         stayIds.add(stayId);
         hostActiveStays[msg.sender]++;
 
-        return stayId;
+        emit Listing(msg.sender, stayId);
     }
 
     function removeListing(uint256 stayId) public {

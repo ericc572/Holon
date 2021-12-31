@@ -9,6 +9,17 @@ const truffleAssert = require('truffle-assertions');
 //   expectRevert, // Assertions for transactions that should fail
 // } = require('@openzeppelin/test-helpers');
 
+function extractStayID(txResult) {
+    events = txResult['events'];
+    for (let i = 0; i < events.length; i++) {
+      event = events[i];
+      if (event['event'] == 'Listing') {
+        return event['args']['stayId'];
+      }
+    }
+    return -1;
+  }
+
 describe.only("purchase", function () {
 
   beforeEach(async function() {
@@ -39,9 +50,11 @@ describe.only("purchase", function () {
     await usdcContract.connect(host).approve(contract.address, requiredDeposit);
     await contract.connect(host).deposit();
     payment = ethers.utils.parseUnits("2", 18);
-    totalPayment = payment.add(payment.div(2));
-    await contract.connect(host).list(payment);
-    stayId = await contract.getStayId(await contract.getNumStays() - 1);
+    securityDeposit = ethers.utils.parseUnits("1", 18);
+    totalPayment = payment.add(securityDeposit);
+    tx = await contract.connect(host).list(payment, securityDeposit);
+    res = await tx.wait();
+    stayId = extractStayID(res);
   });
 
   it("Purchase succeeds", async function () {
