@@ -30,7 +30,7 @@ Make sure that hardhat is installed!
 npm install --save-dev hardhat && npx hardhat
 ```
 
-Create a `.env` file in the root directory, and add `PRIVATE_KEY=<YOUR EXPORTED PRIVATE KEY>`. 
+Create a `.env` file in the root directory, and add `PRIVATE_KEY=<YOUR EXPORTED PRIVATE KEY>`. Then add 'MUMBAI_API_URL=<MUMBAI_API_URL>' (ask Pranav for the Mumbai API url from Alchemy).
 
 *DO NOT* PUSH THIS FILE! ADD IT TO YOUR GITIGNORE NOW. OR there will be dire consequences lol.
 
@@ -42,15 +42,14 @@ npx hardhat run scripts/deploy-script.js --network matic
 
 ## Testing
 
-Set up tests.
+Set up tests. 
 
-First, go to `hardhat.config.js`. Change the value of `defaultNetwork` from `matic` to `localhost`.
 In a separate terminal tab, run 
 
 ```
 npx run node
 ```
-
+This by default forks Polygon's Mumbai Testnet, meaning you can mimic accounts on that network (i.e. you can use the faucets below to obtain USDC in your test account's wallet and then mimic them in your tests on the forked local node that Hardhat runs).
 Now run your tests. use `.only` to isolate describe/it blocks.
 
 ```
@@ -59,7 +58,8 @@ npx run test
 
 To obtain Testnet Mumbai tokens:
 [visit this link](https://faucet.matic.network/)
-
+To obtain Testnet Mumbai USDC tokens:
+[visit this link](https://docs.filswan.com/development-resource/swan-token-contract/acquire-testnet-usdc-and-matic-tokens)
 
 # Contributing
 

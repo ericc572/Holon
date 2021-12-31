@@ -1,3 +1,4 @@
+const { ethers } = require("hardhat");
 const { expect } = require("chai");
 const assert = require("chai").assert;
 const truffleAssert = require('truffle-assertions');
@@ -11,48 +12,59 @@ const truffleAssert = require('truffle-assertions');
 describe.only("StayManager Contract", function () {
 
   beforeEach(async function() {
-    [host] = await ethers.getSigners();
+    [acc1] = await ethers.getSigners();
     const k = await ethers.getContractFactory("StayManager");
+    
+    requiredDeposit = ethers.utils.parseUnits("1", 18);
+    contract = await k.deploy(requiredDeposit);
 
-    contract = await k.deploy();
+    // Mimic test host account
+    await hre.network.provider.request({
+      method: "hardhat_impersonateAccount",
+      params: ["0x32984c4e2B8d582771ADd9EC3FA219D07ca43F39"],
+    });
+    host = await ethers.getSigner("0x32984c4e2B8d582771ADd9EC3FA219D07ca43F39");
+
+    USDCContract = await ethers.getContractFactory("ERC20");
+    usdcContract = await USDCContract.attach('0xe11a86849d99f524cac3e7a0ec1241828e332c62');
   });
 
   it("Fails a listing without despoit", async function () {
     await truffleAssert.fails(
         contract.connect(host).list(1000),
         truffleAssert.ErrorType.REVERT,
-        "Must deposit .001 MATIC."
+        "User has not deposited."
     );
   });
 
-  //test stake function
+  //test deposit function
   it("successfully deposits an amount", async function () {
-    const amt = 10 ** 10;
-    await contract.connect(host).deposit({value: amt });
-
-    expect(
-      await contract.depositBalances(host.address)
-    ).to.eq(amt);
-
+    initialHostBal = await usdcContract.balanceOf(host.address);
+    await usdcContract.connect(host).approve(contract.address, requiredDeposit);
+    expect(await usdcContract.allowance(host.address, contract.address)).to.eq(requiredDeposit);
+    await contract.connect(host).deposit();
+    expect(await usdcContract.allowance(host.address, contract.address)).to.eq(0);
+    expect(await usdcContract.balanceOf(host.address), requiredDeposit);
+    expect(await usdcContract.balanceOf(contract.address), requiredDeposit);
+    expect(await contract.depositBalances(host.address)).to.eq(requiredDeposit);
   });
 
   //test list function before depositing
   it("successfully deposits an amount, lists stay, and isn't able to withdraw", async function () {
-    const amt = 10 ** 10;
-    await contract.connect(host).deposit({value: amt});
-    assert.equal(await contract.depositBalances(host.address), amt);
+    await usdcContract.connect(host).approve(contract.address, requiredDeposit);
+    await contract.connect(host).deposit();
     
-    const payment = 1000;
+    payment = ethers.utils.parseUnits("2", 18);
     await contract.connect(host).list(payment);
     stayId = await contract.getStayId(await contract.getNumStays() - 1)
     res = await contract.stays(stayId);
-    assert.equal(res[1], host.address);
-    assert.equal(res[2], 0);
-    assert.equal(res[3], true);
-    assert.equal(res[4], 0);
-    assert.equal(res[5], 0);
-    assert.equal(res[6], payment);
-    assert.equal(res[7], payment / 2);
+    expect(res[1]).to.eq(host.address);
+    expect(res[2]).to.eq(ethers.constants.AddressZero);
+    expect(res[3]).to.eq(true);
+    expect(res[4]).to.eq(0);
+    expect(res[5]).to.eq(0);
+    expect(res[6]).to.eq(payment);
+    expect(res[7]).to.eq(payment.div(2));
 
     await truffleAssert.fails(
         contract.connect(host).withdrawDeposit(),
@@ -62,31 +74,35 @@ describe.only("StayManager Contract", function () {
   });
 
   it("can successfully withdraw an amount", async function () {
-    const amt = 10 ** 10;
-    await contract.connect(host).deposit({value: amt });
+    initialHostBal = await usdcContract.balanceOf(host.address);
+    initialContractBal = await usdcContract.balanceOf(contract.address);
+    await usdcContract.connect(host).approve(contract.address, requiredDeposit);
+    await contract.connect(host).deposit();
 
-    await contract.withdrawDeposit()
+    await contract.connect(host).withdrawDeposit();
 
-    expect(
-      await contract.depositBalances(host.address)
-    ).to.eq(0);
-
+    expect(await contract.depositBalances(host.address)).to.eq(0);
+    expect(await usdcContract.balanceOf(host.address)).to.eq(initialHostBal);
+    expect(await usdcContract.balanceOf(contract.address)).to.eq(initialContractBal);
   });
 
   it("can successfully withdraw an amount after listing and delisting", async function () {
-    const amt = 10 ** 10;
-    await contract.connect(host).deposit({value: amt });
-    const payment = 1000;
-    await contract.connect(host).list(payment);
-    stayId = await contract.getStayId(await contract.getNumStays() - 1)
-    await contract.connect(host).removeListing(stayId)
-    await contract.withdrawDeposit()
+    initialHostBal = await usdcContract.balanceOf(host.address);
+    initialContractBal = await usdcContract.balanceOf(contract.address);
+    await usdcContract.connect(host).approve(contract.address, requiredDeposit);
+    await contract.connect(host).deposit();
 
-    expect(
-      await contract.depositBalances(host.address)
-    ).to.eq(0);
-    assert.equal(await contract.getNumStays(), 0);
-    assert.equal(await contract.hostActiveStays(host.address), 0);
+    payment = ethers.utils.parseUnits("2", 18);
+    await contract.connect(host).list(payment);
+    stayId = await contract.getStayId(await contract.getNumStays() - 1);
+    await contract.connect(host).removeListing(stayId);
+    await contract.connect(host).withdrawDeposit();
+
+    expect(await contract.depositBalances(host.address)).to.eq(0);
+    expect(await contract.getNumStays()).to.eq(0);
+    expect(await contract.hostActiveStays(host.address)).to.eq(0);
+    expect(await usdcContract.balanceOf(host.address)).to.eq(initialHostBal);
+    expect(await usdcContract.balanceOf(contract.address)).to.eq(initialContractBal);
   });
 
 });
