@@ -51,6 +51,22 @@ describe.only("list", function () {
     );
   });
 
+  it("Fails a deposit with insufficient USDC balance", async function () {
+    await truffleAssert.fails(
+        contract.connect(acc1).deposit(),
+        truffleAssert.ErrorType.REVERT,
+        "USDC balance insufficient."
+    );
+  });
+
+  it("Fails a deposit without approval", async function () {
+    await truffleAssert.fails(
+        contract.connect(host).deposit(),
+        truffleAssert.ErrorType.REVERT,
+        "Contract not approved for USDC transaction"
+    );
+  });
+
   //test deposit function
   it("successfully deposits an amount", async function () {
     initialHostBal = await usdcContract.balanceOf(host.address);
