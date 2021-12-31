@@ -18,8 +18,6 @@ contract StayManager is ERC721URIStorage, Ownable {
     Counters.Counter private _tokenIds;
     Counters.Counter private _stayIds;
 
-    uint256 private _securityDepositDivisor = 2;
-
     struct Stay {
         uint256 id;
         address host;
