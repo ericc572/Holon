@@ -1,6 +1,6 @@
 require("@nomiclabs/hardhat-waffle");
 require('dotenv').config();
-const PRIVATE_KEY = process.env.PRIVATE_KEY;
+const {PRIVATE_KEY, MUMBAI_API_URL} = process.env;
 
 // This is a sample Hardhat task. To learn how to create your own go to
 // https://hardhat.org/guides/create-task.html
@@ -19,13 +19,21 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
  * @type import('hardhat/config').HardhatUserConfig
  */
  module.exports = {
-  defaultNetwork: "localhost",
+  defaultNetwork: "hardhat",
   networks: {
     hardhat: {
+      forking: {
+        url: MUMBAI_API_URL,
+        accounts: [`0x${PRIVATE_KEY}`]
+      }
     },
     matic: {
       url: "https://polygon-mumbai.g.alchemy.com/v2/eA9f7oGCz2fl3qapdfOGQn-RIF5lTVSl",
       accounts: [PRIVATE_KEY]
+    },
+    mumbai: {
+      url: MUMBAI_API_URL,
+      accounts: [`0x${PRIVATE_KEY}`]
     }
   },
   solidity: {
