@@ -36,6 +36,8 @@ contract StayManager is ERC721URIStorage, Ownable {
     EnumerableSet.UintSet private _stayIdSet;  
     mapping(address => uint256) public hostActiveStays;
 
+    mapping(uint256 => uint256) public tokenToStayMap;
+
     // Contract's Events
     event Deposit(address indexed sender, uint256 amount);
     event WithdrawDeposit(address sender, uint256 amount);
@@ -129,5 +131,8 @@ contract StayManager is ERC721URIStorage, Ownable {
         stays[stayId].guest = msg.sender;
         stays[stayId].gstay = gstayId;
         stays[stayId].hstay = hstayId;
+
+        tokenToStayMap[gstayId] = stayId;
+        tokenToStayMap[hstayId] = stayId;
     }
 }
