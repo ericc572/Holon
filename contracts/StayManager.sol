@@ -51,7 +51,8 @@ contract StayManager is ERC721URIStorage, Ownable {
     }
 
     function deposit() public payable {
-        //TODO: require approval
+        require(_usdcContract.balanceOf(msg.sender) >= _requiredDeposit, "USDC balance insufficient.");
+        require(_usdcContract.allowance(msg.sender, address(this)) == _requiredDeposit, "Contract not approved for USDC transaction");
         _usdcContract.safeTransferFrom(msg.sender, address(this), _requiredDeposit);
         // update the user's balance
         depositBalances[msg.sender] += _requiredDeposit;
