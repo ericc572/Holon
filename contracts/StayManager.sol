@@ -1,13 +1,13 @@
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "hardhat/console.sol";
 
-contract StayManager is ERC721, Ownable {
+contract StayManager is ERC721URIStorage, Ownable {
     using Counters for Counters.Counter;
     using EnumerableSet for EnumerableSet.UintSet;
     using SafeERC20 for IERC20;
@@ -15,9 +15,8 @@ contract StayManager is ERC721, Ownable {
     // USDC Contract
     IERC20 private _usdcContract;
 
+    Counters.Counter private _tokenIds;
     Counters.Counter private _stayIds;
-    Counters.Counter private _gstayIds;
-    Counters.Counter private _hstayIds;
 
     uint256 private _securityDepositDivisor = 2;
 
@@ -52,7 +51,7 @@ contract StayManager is ERC721, Ownable {
     }
 
     function deposit() public payable {
-        //require at least 1000 USDC
+        //TODO: require approval
         _usdcContract.safeTransferFrom(msg.sender, address(this), _requiredDeposit);
         // update the user's balance
         depositBalances[msg.sender] += _requiredDeposit;
@@ -89,6 +88,8 @@ contract StayManager is ERC721, Ownable {
     function removeListing(uint256 stayId) public {
         require(stayIds.contains(stayId), "Attempted to delist a stayId that doesn't exist.");
         require(stays[stayId].host == msg.sender, "Only host can remove listing.");
+        require(stays[stayId].open, "Cannot delist an active stay.");
+
         _delist(stayId);
     }
 
@@ -104,5 +105,30 @@ contract StayManager is ERC721, Ownable {
 
     function getStayId(uint index) public view returns (uint256){
         return stayIds.at(index);
+    }
+
+    function purchase(uint256 stayId, string memory tokenURI) public {
+        require(stays[stayId].open, "Listing is not open");
+        uint256 totalPayment = stays[stayId].payment + stays[stayId].securityDeposit;
+        require(totalPayment <= _usdcContract.balanceOf(msg.sender), "USDC balance not sufficient to complete stay transaction.");
+        require(stays[stayId].host != msg.sender, "Host cannot purhcase their own stay.");
+        require(_usdcContract.allowance(msg.sender, address(this)) == totalPayment, "Contract not approved for USDC transaction");
+
+        _usdcContract.safeTransferFrom(msg.sender, address(this), totalPayment);
+
+        _tokenIds.increment();
+        uint256 gstayId = _tokenIds.current();
+        _tokenIds.increment();
+        uint256 hstayId = _tokenIds.current();
+
+        _safeMint(msg.sender, gstayId);
+        _safeMint(stays[stayId].host, hstayId);
+        _setTokenURI(gstayId, tokenURI);
+        _setTokenURI(hstayId, tokenURI);
+
+        stays[stayId].open = false;
+        stays[stayId].guest = msg.sender;
+        stays[stayId].gstay = gstayId;
+        stays[stayId].hstay = hstayId;
     }
 }

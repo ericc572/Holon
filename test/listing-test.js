@@ -9,7 +9,7 @@ const truffleAssert = require('truffle-assertions');
 //   expectRevert, // Assertions for transactions that should fail
 // } = require('@openzeppelin/test-helpers');
 
-describe.only("StayManager Contract", function () {
+describe.only("list", function () {
 
   beforeEach(async function() {
     [acc1] = await ethers.getSigners();
@@ -44,8 +44,8 @@ describe.only("StayManager Contract", function () {
     expect(await usdcContract.allowance(host.address, contract.address)).to.eq(requiredDeposit);
     await contract.connect(host).deposit();
     expect(await usdcContract.allowance(host.address, contract.address)).to.eq(0);
-    expect(await usdcContract.balanceOf(host.address), requiredDeposit);
-    expect(await usdcContract.balanceOf(contract.address), requiredDeposit);
+    expect(await usdcContract.balanceOf(host.address)).to.eq(initialHostBal.sub(requiredDeposit));
+    expect(await usdcContract.balanceOf(contract.address)).to.eq(requiredDeposit);
     expect(await contract.depositBalances(host.address)).to.eq(requiredDeposit);
   });
 
