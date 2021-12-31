@@ -9,6 +9,17 @@ const truffleAssert = require('truffle-assertions');
 //   expectRevert, // Assertions for transactions that should fail
 // } = require('@openzeppelin/test-helpers');
 
+function extractStayID(txResult) {
+  events = txResult['events'];
+  for (let i = 0; i < events.length; i++) {
+    event = events[i];
+    if (event['event'] == 'Listing') {
+      return event['args']['stayId'];
+    }
+  }
+  return -1;
+}
+
 describe.only("list", function () {
 
   beforeEach(async function() {
@@ -27,11 +38,14 @@ describe.only("list", function () {
 
     USDCContract = await ethers.getContractFactory("ERC20");
     usdcContract = await USDCContract.attach('0xe11a86849d99f524cac3e7a0ec1241828e332c62');
+
+    payment = ethers.utils.parseUnits("2", 18);
+    securityDeposit = ethers.utils.parseUnits("1", 18);
   });
 
   it("Fails a listing without despoit", async function () {
     await truffleAssert.fails(
-        contract.connect(host).list(1000),
+        contract.connect(host).list(1000, 100),
         truffleAssert.ErrorType.REVERT,
         "User has not deposited."
     );
@@ -54,9 +68,13 @@ describe.only("list", function () {
     await usdcContract.connect(host).approve(contract.address, requiredDeposit);
     await contract.connect(host).deposit();
     
-    payment = ethers.utils.parseUnits("2", 18);
-    await contract.connect(host).list(payment);
-    stayId = await contract.getStayId(await contract.getNumStays() - 1)
+    
+    tx = await contract.connect(host).list(payment, securityDeposit);
+    res = await tx.wait();
+    stayId = extractStayID(res);
+    assert(stayId >= 0, "Couldn't find Listing event to extract stayId.");
+    
+    // stayId = await contract.getStayId(await contract.getNumStays() - 1)
     res = await contract.stays(stayId);
     expect(res[1]).to.eq(host.address);
     expect(res[2]).to.eq(ethers.constants.AddressZero);
@@ -64,7 +82,7 @@ describe.only("list", function () {
     expect(res[4]).to.eq(0);
     expect(res[5]).to.eq(0);
     expect(res[6]).to.eq(payment);
-    expect(res[7]).to.eq(payment.div(2));
+    expect(res[7]).to.eq(securityDeposit);
 
     await truffleAssert.fails(
         contract.connect(host).withdrawDeposit(),
@@ -92,8 +110,7 @@ describe.only("list", function () {
     await usdcContract.connect(host).approve(contract.address, requiredDeposit);
     await contract.connect(host).deposit();
 
-    payment = ethers.utils.parseUnits("2", 18);
-    await contract.connect(host).list(payment);
+    tx = await contract.connect(host).list(payment, securityDeposit);
     stayId = await contract.getStayId(await contract.getNumStays() - 1);
     await contract.connect(host).removeListing(stayId);
     await contract.connect(host).withdrawDeposit();
