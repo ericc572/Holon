@@ -35,7 +35,7 @@ contract StayManager is ERC721URIStorage, Ownable {
     uint256 private _requiredDeposit;
 
     mapping(uint256 => Stay) public stays;
-    EnumerableSet.UintSet private stayIds;  
+    EnumerableSet.UintSet private _stayIdSet;  
     mapping(address => uint256) public hostActiveStays;
 
     // Contract's Events
@@ -80,14 +80,14 @@ contract StayManager is ERC721URIStorage, Ownable {
         uint256 stayId = _stayIds.current();
 
         stays[stayId] = Stay(stayId, msg.sender, address(0), true, 0, 0, payment, securityDeposit);
-        stayIds.add(stayId);
+        _stayIdSet.add(stayId);
         hostActiveStays[msg.sender]++;
 
         emit Listing(msg.sender, stayId);
     }
 
     function removeListing(uint256 stayId) public {
-        require(stayIds.contains(stayId), "Attempted to delist a stayId that doesn't exist.");
+        require(_stayIdSet.contains(stayId), "Attempted to delist a stayId that doesn't exist.");
         require(stays[stayId].host == msg.sender, "Only host can remove listing.");
         require(stays[stayId].open, "Cannot delist an active stay.");
 
@@ -97,15 +97,15 @@ contract StayManager is ERC721URIStorage, Ownable {
     function _delist(uint256 stayId) internal {
         hostActiveStays[stays[stayId].host]--;
         delete stays[stayId];
-        stayIds.remove(stayId);
+        _stayIdSet.remove(stayId);
     }
 
     function getNumStays() public view returns (uint256){
-        return stayIds.length();
+        return _stayIdSet.length();
     }
 
     function getStayId(uint index) public view returns (uint256){
-        return stayIds.at(index);
+        return _stayIdSet.at(index);
     }
 
     function purchase(uint256 stayId, string memory tokenURI) public {
