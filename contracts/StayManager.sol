@@ -43,6 +43,7 @@ contract StayManager is ERC721URIStorage, Ownable {
     event Deposit(address indexed sender, uint256 amount);
     event WithdrawDeposit(address sender, uint256 amount);
     event Listing(address host, uint256 stayId);
+    event ModifyListing(address host, uint256 stayId, uint256 payment, uint256 securityDeposit);
 
     constructor(uint256 requiredDeposit) ERC721("StayManager", "HolonStayManager") {
         _requiredDeposit = requiredDeposit;
@@ -75,16 +76,16 @@ contract StayManager is ERC721URIStorage, Ownable {
     function list(uint256 payment, uint256 securityDeposit) 
         public 
     {
+        _list(msg.sender, payment, securityDeposit);
+    }
+
+    function bulkList(uint256[][] memory listings) 
+        public
+    {
         require(depositBalances[msg.sender] >= _requiredDeposit, "User has not deposited.");
-
-        _stayIds.increment();
-        uint256 stayId = _stayIds.current();
-
-        stays[stayId] = Stay(stayId, msg.sender, address(0), true, 0, 0, payment, securityDeposit);
-        _stayIdSet.add(stayId);
-        hostActiveStays[msg.sender]++;
-
-        emit Listing(msg.sender, stayId);
+        for(uint i = 0; i < listings.length; i++) {
+            _list(msg.sender, listings[i][0], listings[i][1]);
+        }
     }
 
     function removeListing(uint256 stayId) public {
@@ -93,6 +94,35 @@ contract StayManager is ERC721URIStorage, Ownable {
         require(stays[stayId].open, "Cannot delist an active stay.");
 
         _delist(stayId);
+    }
+
+    function modifyListing(uint256 stayId, uint256 payment, uint256 securityDeposit)
+        public
+    {
+        require(stays[stayId].id > 0, "stayId doesn't exist.");
+        require(stays[stayId].open, "stayId has already been purchased.");
+        require(stays[stayId].host == msg.sender, "Only owner can modify listing.");
+        require(depositBalances[msg.sender] >= _requiredDeposit, "User has not deposited.");
+        
+        stays[stayId].payment = payment;
+        stays[stayId].securityDeposit = securityDeposit;
+
+        emit ModifyListing(msg.sender, stayId, payment, securityDeposit);
+    }
+
+    function _list(address sender, uint256 payment, uint256 securityDeposit) 
+        private 
+    {
+        require(depositBalances[sender] >= _requiredDeposit, "User has not deposited.");
+
+        _stayIds.increment();
+        uint256 stayId = _stayIds.current();
+
+        stays[stayId] = Stay(stayId, sender, address(0), true, 0, 0, payment, securityDeposit);
+        _stayIdSet.add(stayId);
+        hostActiveStays[sender]++;
+
+        emit Listing(sender, stayId);
     }
 
     function _delist(uint256 stayId) internal {
