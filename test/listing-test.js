@@ -8,16 +8,16 @@ const truffleAssert = require('truffle-assertions');
 //   expectEvent,  // Assertions for emitted events
 //   expectRevert, // Assertions for transactions that should fail
 // } = require('@openzeppelin/test-helpers');
-
-function extractStayID(txResult) {
+function extractEventInfo(txResult, eventName, eventDataKey) {
   events = txResult['events'];
+  results = [];
   for (let i = 0; i < events.length; i++) {
     event = events[i];
-    if (event['event'] == 'Listing') {
-      return event['args']['stayId'];
+    if (event['event'] == eventName) {
+      results.push(event['args'][eventDataKey]);
     }
   }
-  return -1;
+  return results;
 }
 
 describe.only("list", function () {
@@ -87,8 +87,9 @@ describe.only("list", function () {
     
     tx = await contract.connect(host).list(payment, securityDeposit);
     res = await tx.wait();
-    stayId = extractStayID(res);
-    assert(stayId >= 0, "Couldn't find Listing event to extract stayId.");
+    stayIds = extractEventInfo(res, 'Listing', 'stayId');
+    assert(stayIds.length > 0, "Couldn't find Listing event to extract stayId.");
+    stayId = stayIds[0];
     
     // stayId = await contract.getStayId(await contract.getNumStays() - 1)
     res = await contract.stays(stayId);
@@ -137,5 +138,43 @@ describe.only("list", function () {
     expect(await usdcContract.balanceOf(host.address)).to.eq(initialHostBal);
     expect(await usdcContract.balanceOf(contract.address)).to.eq(initialContractBal);
   });
+
+  it("can successfully bulk list", async function () {
+    await usdcContract.connect(host).approve(contract.address, requiredDeposit);
+    await contract.connect(host).deposit();
+
+    bulkListings = [[payment, securityDeposit], [payment, securityDeposit], [payment, securityDeposit]];
+
+    tx = await contract.connect(host).bulkList(bulkListings);
+    res = await tx.wait();
+    stayIds = extractEventInfo(res, 'Listing', 'stayId');
+    assert(stayIds.length == 3, "Bulk list did not emit sufficient Listing events.")
+    expect(await contract.getNumStays()).to.eq(3);
+    expect(await contract.hostActiveStays(host.address)).to.eq(3);
+  });
+
+  it("can successfully modify listing but fails if non-owner tries to modify", async function () {
+    await usdcContract.connect(host).approve(contract.address, requiredDeposit);
+    await contract.connect(host).deposit();
+
+    tx = await contract.connect(host).list(payment, securityDeposit);
+    res = await tx.wait();
+    stayIds = extractEventInfo(res, 'Listing', 'stayId');
+    stayid = stayIds[0];
+
+    newPayment = payment.add(2);
+    await truffleAssert.fails(
+      contract.connect(acc1).modifyListing(stayId, newPayment, securityDeposit),
+      truffleAssert.ErrorType.REVERT,
+      "Only owner can modify listing."
+    );
+
+    tx = await contract.connect(host).modifyListing(stayId, newPayment, securityDeposit);
+    res = await tx.wait()
+    modifiedPayments = extractEventInfo(res, 'ModifyListing', 'payment');
+    expect(modifiedPayments[0]).to.eq(newPayment);
+  });
+
+  
 
 });
