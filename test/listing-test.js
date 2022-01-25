@@ -24,10 +24,11 @@ describe.only("list", function () {
 
   beforeEach(async function() {
     [acc1] = await ethers.getSigners();
-    const k = await ethers.getContractFactory("StayManager");
+    k = await ethers.getContractFactory("StayManager");
     
     requiredDeposit = ethers.utils.parseUnits("1", 18);
-    contract = await k.deploy(requiredDeposit);
+    fee = 5;
+    contract = await k.deploy(requiredDeposit, fee);
 
     // Mimic test host account
     await hre.network.provider.request({

@@ -19,6 +19,13 @@ contract StayManager is ERC721URIStorage, Ownable {
     Counters.Counter private _tokenIds;
     Counters.Counter private _stayIds;
 
+    // status = {
+    //     0: open,
+    //     1: in progress,
+    //     2: returned nft,
+    //     3: sent nft to adjudicator
+    // }
+
     struct Stay {
         uint256 id;
         address host;
@@ -28,6 +35,8 @@ contract StayManager is ERC721URIStorage, Ownable {
         uint256 gstay;
         uint256 payment;
         uint256 securityDeposit;
+        uint8 hostStatus;
+        uint8 guestStatus; 
     }
 
     mapping(address => uint256) public depositBalances;
@@ -39,14 +48,19 @@ contract StayManager is ERC721URIStorage, Ownable {
 
     mapping(uint256 => uint256) public tokenToStayMap;
 
+    uint256 private _feePercent;
+    uint256 private _totalFeeBalance;
+
     // Contract's Events
     event Deposit(address indexed sender, uint256 amount);
     event WithdrawDeposit(address sender, uint256 amount);
     event Listing(address host, uint256 stayId);
     event ModifyListing(address host, uint256 stayId, uint256 payment, uint256 securityDeposit);
+    event CloseOut(uint256 stayId, address host, address guest, uint256 fee, uint256 hostPayment, uint256 guestPayment);
 
-    constructor(uint256 requiredDeposit) ERC721("StayManager", "HolonStayManager") {
+    constructor(uint256 requiredDeposit, uint256 feePercent) ERC721("StayManager", "HolonStayManager") {
         _requiredDeposit = requiredDeposit;
+        _feePercent = feePercent;
 
         // For testing only, this is the USDC contract deployed to Mumbai Testnet
         _usdcContract = IERC20(0xe11A86849d99F524cAC3E7A0Ec1241828e332C62);
@@ -118,11 +132,12 @@ contract StayManager is ERC721URIStorage, Ownable {
         private 
     {
         require(depositBalances[sender] >= _requiredDeposit, "User has not deposited.");
+        require(payment >= 100, "Min payment is 100*10^-18");
 
         _stayIds.increment();
         uint256 stayId = _stayIds.current();
 
-        stays[stayId] = Stay(stayId, sender, address(0), true, 0, 0, payment, securityDeposit);
+        stays[stayId] = Stay(stayId, sender, address(0), true, 0, 0, payment, securityDeposit, 0, 0);
         _stayIdSet.add(stayId);
         hostActiveStays[sender]++;
 
@@ -163,11 +178,65 @@ contract StayManager is ERC721URIStorage, Ownable {
         _setTokenURI(hstayId, tokenURI);
 
         stays[stayId].open = false;
+        stays[stayId].hostStatus = 1;
+        stays[stayId].guestStatus = 1;
         stays[stayId].guest = msg.sender;
         stays[stayId].gstay = gstayId;
         stays[stayId].hstay = hstayId;
 
         tokenToStayMap[gstayId] = stayId;
         tokenToStayMap[hstayId] = stayId;
+    }
+
+    function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data) external returns (bytes4) {
+        require(operator == address(this), "StayManager can only accept NFTs minted by itself.");
+        return bytes4(keccak256("onERC721Received(address,uint256,bytes)"));
+    }
+
+    function returnStayNFT(uint256 tokenId) public {
+        require(msg.sender == ownerOf(tokenId), "Cannot return a stay you do not own.");
+        require(tokenToStayMap[tokenId] > 0, "No stay associated with this NFT.");
+
+        uint256 stayId = tokenToStayMap[tokenId];
+        require((msg.sender == stays[stayId].host) || (msg.sender == stays[stayId].guest), "Only host or guest can interact with an active stay.");
+
+        transferFrom(msg.sender, address(this), tokenId);
+        
+        if (msg.sender == stays[stayId].host) {
+            require(stays[stayId].hostStatus == 1, "hostStatus != 1");
+            if (stays[stayId].guestStatus == 2) {
+                _closeOut(stayId);
+            } else {
+                stays[stayId].hostStatus = 2;
+            }
+        } else {
+            require(stays[stayId].guestStatus == 1, "guestStatus != 1");
+            if (stays[stayId].hostStatus == 2) {
+                _closeOut(stayId);
+            } else{
+                stays[stayId].guestStatus = 2;
+            }
+        }
+    }
+
+    function _closeOut(uint256 stayId) internal {
+        uint256 payment = stays[stayId].payment;
+        uint256 securityDeposit = stays[stayId].securityDeposit;
+        uint256 fee = _feePercent * payment / 100;
+        uint256 hostRenumeration = payment - fee;
+
+        _usdcContract.safeTransfer(stays[stayId].host, hostRenumeration);
+        _usdcContract.safeTransfer(stays[stayId].guest, securityDeposit);
+
+        _totalFeeBalance += fee;
+
+        emit CloseOut(stayId, stays[stayId].host, stays[stayId].guest, fee, hostRenumeration, securityDeposit);
+
+        delete tokenToStayMap[stays[stayId].hstay];
+        delete tokenToStayMap[stays[stayId].gstay];
+        _burn(stays[stayId].hstay);
+        _burn(stays[stayId].gstay);
+
+        _delist(stayId);   
     }
 }

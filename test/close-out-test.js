@@ -20,7 +20,7 @@ function extractStayID(txResult) {
     return -1;
   }
 
-describe.only("purchase", function () {
+describe.only("close-out", function () {
 
   beforeEach(async function() {
     [acc1] = await ethers.getSigners();
@@ -50,36 +50,55 @@ describe.only("purchase", function () {
     // Deposit and create listing
     await usdcContract.connect(host).approve(contract.address, requiredDeposit);
     await contract.connect(host).deposit();
-    payment = ethers.utils.parseUnits("2", 18);
+    payment = ethers.utils.parseUnits("1", 18);
     securityDeposit = ethers.utils.parseUnits("1", 18);
     totalPayment = payment.add(securityDeposit);
     tx = await contract.connect(host).list(payment, securityDeposit);
     res = await tx.wait();
     stayId = extractStayID(res);
+
+    usdcContract.connect(guest).approve(contract.address, totalPayment);
+    tokenURI = "{startDate: 20220101, endDate: 20220201}";
   });
 
-  it("Purchase succeeds", async function () {
+  it("Simple close-out succeeds", async function () {
     usdcContract.connect(guest).approve(contract.address, totalPayment);
-    const tokenURI = "{startDate: 20220101, endDate: 20220201}";
-    const guestBalanceBefore = await usdcContract.balanceOf(guest.address);
-    const contractBalanceBefore = await usdcContract.balanceOf(contract.address);
+    tokenURI = "{startDate: 20220101, endDate: 20220201}";
 
     await contract.connect(guest).purchase(stayId, tokenURI);
+    res = await contract.stays(stayId);
 
-    expect(await usdcContract.balanceOf(guest.address)).to.eq(guestBalanceBefore.sub(totalPayment));
-    expect(await usdcContract.balanceOf(contract.address)).to.eq(contractBalanceBefore.add(totalPayment));
+    hostBalanceBefore = await usdcContract.balanceOf(host.address);
+    guestBalanceBefore = await usdcContract.balanceOf(guest.address);
+    contractBalanceBefore = await usdcContract.balanceOf(contract.address);
 
-    const res = await contract.stays(stayId);
+    await contract.connect(host).returnStayNFT(res.hstay);
+    await contract.connect(guest).returnStayNFT(res.gstay);
 
-    expect(res.host).to.eq(host.address);
-    expect(res.guest).to.eq(guest.address);
-    expect(res.open).to.eq(false);
-    expect(await contract.ownerOf(res.hstay)).to.eq(host.address);
-    expect(await contract.ownerOf(res.gstay)).to.eq(guest.address);
-    expect(res.payment).to.eq(payment);
-    expect(res.securityDeposit).to.eq(securityDeposit);
-    expect(res.hostStatus).to.eq(1);
-    expect(res.guestStatus).to.eq(1);
+    hostPayment = hostBalanceBefore.add(payment);
+    hostRenumeration = hostPayment.sub(ethers.utils.parseUnits(".05", 18));
+    guestPayment = guestBalanceBefore.add(securityDeposit);
+    totalFee = contractBalanceBefore.add(ethers.utils.parseUnits(".05", 18)).sub(payment).sub(securityDeposit);
+
+    expect(await usdcContract.balanceOf(guest.address)).to.eq(guestPayment);
+    expect(await usdcContract.balanceOf(host.address)).to.eq(hostRenumeration);
+    expect(await usdcContract.balanceOf(contract.address)).to.eq(totalFee);
+
+    expect(await contract.hostActiveStays(host.address)).to.eq(0);
+    expect(await contract.getNumStays()).to.eq(0);  
+
+    await truffleAssert.fails(
+        contract.ownerOf(res.hstay),
+        truffleAssert.ErrorType.REVERT,
+        "ERC721: owner query for nonexistent token"
+    );
+
+    await truffleAssert.fails(
+        contract.ownerOf(res.gstay),
+        truffleAssert.ErrorType.REVERT,
+        "ERC721: owner query for nonexistent token"
+    );
+    
   });
 
 });
