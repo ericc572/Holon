@@ -130,7 +130,7 @@ describe.only("list", function () {
 
     tx = await contract.connect(host).list(payment, securityDeposit);
     stayId = await contract.getStayId(await contract.getNumStays() - 1);
-    await contract.connect(host).removeListing(stayId);
+    await contract.connect(host).removeListings([stayId]);
     await contract.connect(host).withdrawDeposit();
 
     expect(await contract.depositBalances(host.address)).to.eq(0);

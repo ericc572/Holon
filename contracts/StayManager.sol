@@ -106,12 +106,11 @@ contract StayManager is ERC721URIStorage, Ownable {
         }
     }
 
-    function removeListing(uint256 stayId) public {
-        require(_stayIdSet.contains(stayId), "Attempted to delist a stayId that doesn't exist.");
-        require(stays[stayId].host == msg.sender, "Only host can remove listing.");
-        require(stays[stayId].open, "Cannot delist an active stay.");
-
-        _delist(stayId);
+    function removeListings(uint256[] memory stayIds) public {
+        for (uint i = 0; i < stayIds.length; i++) {
+            _checkRemoveListing(stayIds[i]);
+            _delist(stayIds[i]);
+        }
     }
 
     function modifyListing(uint256 stayId, uint256 payment, uint256 securityDeposit)
@@ -142,6 +141,12 @@ contract StayManager is ERC721URIStorage, Ownable {
         hostActiveStays[sender]++;
 
         emit Listing(sender, stayId);
+    }
+
+    function _checkRemoveListing(uint256 stayId) internal {
+        require(_stayIdSet.contains(stayId), "Attempted to delist a stayId that doesn't exist.");
+        require(stays[stayId].host == msg.sender, "Only host can remove listing.");
+        require(stays[stayId].open, "Cannot delist an active stay.");
     }
 
     function _delist(uint256 stayId) internal {
