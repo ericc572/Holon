@@ -164,11 +164,22 @@ contract StayManager is ERC721URIStorage, Ownable {
     }
 
     function purchase(uint256 stayId, string memory tokenURI) public {
+        _purchase(stayId, tokenURI);
+    }
+
+    function bulkPurchase(uint256[] memory stayIds, string[] memory tokenURIs) public {
+        require(stayIds.length == tokenURIs.length, "Must provide two equal length lists.");
+        for (uint i = 0; i < stayIds.length; i++) {
+            _purchase(stayIds[i], tokenURIs[i]);
+        } 
+    }
+
+    function _purchase(uint256 stayId, string memory tokenURI) internal {
         require(stays[stayId].open, "Listing is not open");
         uint256 totalPayment = stays[stayId].payment + stays[stayId].securityDeposit;
         require(totalPayment <= _usdcContract.balanceOf(msg.sender), "USDC balance not sufficient to complete stay transaction.");
         require(stays[stayId].host != msg.sender, "Host cannot purhcase their own stay.");
-        require(_usdcContract.allowance(msg.sender, address(this)) == totalPayment, "Contract not approved for USDC transaction");
+        require(_usdcContract.allowance(msg.sender, address(this)) >= totalPayment, "Contract not approved for USDC transaction");
 
         _usdcContract.safeTransferFrom(msg.sender, address(this), totalPayment);
 

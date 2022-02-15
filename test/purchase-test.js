@@ -56,6 +56,11 @@ describe.only("purchase", function () {
     tx = await contract.connect(host).list(payment, securityDeposit);
     res = await tx.wait();
     stayId = extractStayID(res);
+
+    tx = await contract.connect(host).list(payment, securityDeposit);
+    res = await tx.wait();
+    stayId2 = extractStayID(res);
+
   });
 
   it("Purchase succeeds", async function () {
@@ -80,6 +85,42 @@ describe.only("purchase", function () {
     expect(res.securityDeposit).to.eq(securityDeposit);
     expect(res.hostStatus).to.eq(1);
     expect(res.guestStatus).to.eq(1);
+  });
+
+  it("Bulk purchase", async function () {
+    usdcContract.connect(guest).approve(contract.address, totalPayment.mul(2));
+    const tokenURI = "{startDate: 20220101, endDate: 20220201}";
+    const guestBalanceBefore = await usdcContract.balanceOf(guest.address);
+    const contractBalanceBefore = await usdcContract.balanceOf(contract.address);
+    
+    await contract.connect(guest).bulkPurchase([stayId, stayId2], [tokenURI, tokenURI]);
+
+    expect(await usdcContract.balanceOf(guest.address)).to.eq(guestBalanceBefore.sub(totalPayment.mul(2)));
+    expect(await usdcContract.balanceOf(contract.address)).to.eq(contractBalanceBefore.add(totalPayment.mul(2)));
+
+    const res = await contract.stays(stayId);
+
+    expect(res.host).to.eq(host.address);
+    expect(res.guest).to.eq(guest.address);
+    expect(res.open).to.eq(false);
+    expect(await contract.ownerOf(res.hstay)).to.eq(host.address);
+    expect(await contract.ownerOf(res.gstay)).to.eq(guest.address);
+    expect(res.payment).to.eq(payment);
+    expect(res.securityDeposit).to.eq(securityDeposit);
+    expect(res.hostStatus).to.eq(1);
+    expect(res.guestStatus).to.eq(1);
+    
+    const res2 = await contract.stays(stayId2);
+
+    expect(res2.host).to.eq(host.address);
+    expect(res2.guest).to.eq(guest.address);
+    expect(res2.open).to.eq(false);
+    expect(await contract.ownerOf(res2.hstay)).to.eq(host.address);
+    expect(await contract.ownerOf(res2.gstay)).to.eq(guest.address);
+    expect(res2.payment).to.eq(payment);
+    expect(res2.securityDeposit).to.eq(securityDeposit);
+    expect(res2.hostStatus).to.eq(1);
+    expect(res2.guestStatus).to.eq(1);
   });
 
 });

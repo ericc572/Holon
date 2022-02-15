@@ -1,3 +1,4 @@
 {
-    "requiredDeposit": "1" 
+    "requiredDeposit": "1",
+    "feePercent": "2"
 }
