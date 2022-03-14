@@ -11,10 +11,19 @@ import "hardhat/console.sol";
 contract StayManager is ERC721URIStorage, Ownable {
     using Counters for Counters.Counter;
     using EnumerableSet for EnumerableSet.UintSet;
+    using EnumerableSet for EnumerableSet.AddressSet;
     using SafeERC20 for IERC20;
+
+    // Pause flag
+    bool private _paused;
 
     // USDC Contract
     IERC20 private _usdcContract;
+
+    // Admin list
+    EnumerableSet.AddressSet private _admins;  
+    // Adjudicator list
+    EnumerableSet.AddressSet private _adjudicators;  
 
     Counters.Counter private _tokenIds;
     Counters.Counter private _stayIds;
@@ -52,25 +61,126 @@ contract StayManager is ERC721URIStorage, Ownable {
     uint256 private _totalFeeBalance;
 
     // Contract's Events
+    event Paused(address admin);
+    event Unpaused(address admin);
     event Deposit(address indexed sender, uint256 amount);
     event WithdrawDeposit(address sender, uint256 amount);
     event Listing(address host, uint256 stayId);
     event ModifyListing(address host, uint256 stayId, uint256 payment, uint256 securityDeposit);
     event CloseOut(uint256 stayId, address host, address guest, uint256 fee, uint256 hostPayment, uint256 guestPayment);
 
-    constructor(uint256 requiredDeposit, uint256 feePercent) ERC721("StayManager", "HolonStayManager") {
+    constructor(uint256 requiredDeposit, uint256 feePercent, address[] memory admins, address usdcAddress) ERC721("StayManager", "HolonStayManager") {
+        _paused = false;
+
         _requiredDeposit = requiredDeposit;
         _feePercent = feePercent;
-
+        for(uint i = 0; i < admins.length; i++) {
+            _admins.add(admins[i]);
+            _adjudicators.add(admins[i]);
+        } 
         // For testing only, this is the USDC contract deployed to Mumbai Testnet
-        _usdcContract = IERC20(0xe11A86849d99F524cAC3E7A0Ec1241828e332C62);
+        _usdcContract = IERC20(usdcAddress);
+    }
+
+    modifier onlyAdmin {
+        require(_admins.contains(msg.sender), "Admin only operation.");
+        _;
+    }
+
+    modifier onlyAdjudicator {
+        require(_adjudicators.contains(msg.sender), "Adjudicator only operation");
+        _;
+    }
+
+    function paused() public view virtual returns (bool) {
+        return _paused;
+    }
+
+    function pause() public onlyAdmin {
+        _paused = true;
+        emit Paused(msg.sender);
+    }
+
+    function unpause() public onlyAdmin {
+        _paused = false;
+        emit Unpaused(msg.sender);
+    }
+
+    modifier whenNotPaused() {
+        require(!paused(), "Pausable: paused");
+        _;
+    }
+
+    function setRequiredDeposit(uint256 requiredDeposit) public onlyAdmin {
+        _requiredDeposit = requiredDeposit;
+    }
+
+    function setFeePercent(uint256 feePercent) public onlyAdmin {
+        _feePercent = feePercent;
+    }
+
+    function addAdjudicators(address[] memory adjudicators) public onlyAdmin {
+        for(uint i = 0; i < adjudicators.length; i++) {
+            _adjudicators.add(adjudicators[i]);
+        } 
+    }
+
+    function addAdmins(address[] memory admins) public onlyAdmin {
+        for(uint i = 0; i < admins.length; i++) {
+            _admins.add(admins[i]);
+        } 
+    }
+
+    function removeAdjudicators(address[] memory adjudicators) public onlyAdmin {
+        require(adjudicators.length < _adjudicators.length(), 'Cannot remove all adjudicators.');
+        for(uint i = 0; i < adjudicators.length; i++) {
+            if (_adjudicators.contains(adjudicators[i])) {
+                _adjudicators.remove(adjudicators[i]);
+            }
+        } 
+    }
+
+    function removeAdmins(address[] memory admins) public onlyAdmin {
+        require(admins.length < _admins.length(), 'Cannot remove all admins.');
+        for(uint i = 0; i < admins.length; i++) {
+            if (_admins.contains(admins[i])) {
+                _admins.remove(admins[i]);
+            }
+        } 
+    }
+
+    function viewAdmins() public view onlyAdmin returns (address[] memory) {
+        return _admins.values();
+    }
+
+    function viewAdjudicators() public view onlyAdmin returns (address[] memory) {
+        return _adjudicators.values();
+    }
+
+    function viewFees() public view onlyAdmin returns (uint256) {
+        return _totalFeeBalance;
+    }
+
+    function transferFees(address target) public onlyAdmin {
+        require(_usdcContract.balanceOf(address(this)) >= _totalFeeBalance, "USDC balance less than totalFeeBalance");
+        _usdcContract.safeTransfer(target, _totalFeeBalance);
+        _totalFeeBalance = 0;
+    }
+
+    function transferUSDC(address target, uint256 amount) public onlyAdmin {
+        require(_usdcContract.balanceOf(address(this)) >= amount, "USDC balance less than amount");
+        _usdcContract.safeTransfer(target, amount);
     }
 
     function getRequiredDeposit() public view returns (uint256) {
         return _requiredDeposit;
     }
 
-    function deposit() public {
+    function getFeePercent() public view returns (uint256) {
+        return _feePercent;
+    }
+
+    function deposit() public whenNotPaused {
         require(_usdcContract.balanceOf(msg.sender) >= _requiredDeposit, "USDC balance insufficient.");
         require(_usdcContract.allowance(msg.sender, address(this)) == _requiredDeposit, "Contract not approved for USDC transaction");
         _usdcContract.safeTransferFrom(msg.sender, address(this), _requiredDeposit);
@@ -81,7 +191,7 @@ contract StayManager is ERC721URIStorage, Ownable {
         emit Deposit(msg.sender, _requiredDeposit);
     }
 
-    function withdrawDeposit() public {
+    function withdrawDeposit() public whenNotPaused {
         require(depositBalances[msg.sender] > 0, "No deposit to withdraw");
         require(hostActiveStays[msg.sender] == 0, "Cannot withdraw despoit unless 0 active stays.");
         uint256 amount = depositBalances[msg.sender];
@@ -92,13 +202,13 @@ contract StayManager is ERC721URIStorage, Ownable {
     }
 
     function list(uint256 payment, uint256 securityDeposit) 
-        public 
+        public whenNotPaused
     {
         _list(msg.sender, payment, securityDeposit);
     }
 
     function bulkList(uint256[][] memory listings) 
-        public
+        public whenNotPaused
     {
         require(depositBalances[msg.sender] >= _requiredDeposit, "User has not deposited.");
         for(uint i = 0; i < listings.length; i++) {
@@ -106,7 +216,7 @@ contract StayManager is ERC721URIStorage, Ownable {
         }
     }
 
-    function removeListings(uint256[] memory stayIds) public {
+    function removeListings(uint256[] memory stayIds) public whenNotPaused {
         for (uint i = 0; i < stayIds.length; i++) {
             _checkRemoveListing(stayIds[i]);
             _delist(stayIds[i]);
@@ -114,7 +224,7 @@ contract StayManager is ERC721URIStorage, Ownable {
     }
 
     function modifyListing(uint256 stayId, uint256 payment, uint256 securityDeposit)
-        public
+        public whenNotPaused
     {
         require(stays[stayId].id > 0, "stayId doesn't exist.");
         require(stays[stayId].open, "stayId has already been purchased.");
@@ -128,7 +238,7 @@ contract StayManager is ERC721URIStorage, Ownable {
     }
 
     function _list(address sender, uint256 payment, uint256 securityDeposit) 
-        private 
+        private whenNotPaused
     {
         require(depositBalances[sender] >= _requiredDeposit, "User has not deposited.");
         require(payment >= 100, "Min payment is 100*10^-18");
@@ -163,11 +273,11 @@ contract StayManager is ERC721URIStorage, Ownable {
         return _stayIdSet.at(index);
     }
 
-    function purchase(uint256 stayId, string memory tokenURI) public {
+    function purchase(uint256 stayId, string memory tokenURI) public whenNotPaused {
         _purchase(stayId, tokenURI);
     }
 
-    function bulkPurchase(uint256[] memory stayIds, string[] memory tokenURIs) public {
+    function bulkPurchase(uint256[] memory stayIds, string[] memory tokenURIs) public whenNotPaused {
         require(stayIds.length == tokenURIs.length, "Must provide two equal length lists.");
         for (uint i = 0; i < stayIds.length; i++) {
             _purchase(stayIds[i], tokenURIs[i]);
@@ -209,7 +319,25 @@ contract StayManager is ERC721URIStorage, Ownable {
         return bytes4(keccak256("onERC721Received(address,uint256,bytes)"));
     }
 
-    function returnStayNFT(uint256 tokenId) public {
+    function sendToAdjudicator(uint256 tokenId) public whenNotPaused {
+        require(msg.sender == ownerOf(tokenId), "Cannot return a stay you do not own.");
+        require(tokenToStayMap[tokenId] > 0, "No stay associated with this NFT.");
+
+        uint256 stayId = tokenToStayMap[tokenId];
+        require((msg.sender == stays[stayId].host) || (msg.sender == stays[stayId].guest), "Only host or guest can interact with an active stay.");
+
+        transferFrom(msg.sender, address(this), tokenId);
+        
+        if (msg.sender == stays[stayId].host) {
+            require(stays[stayId].hostStatus == 1, "hostStatus != 1");
+            stays[stayId].hostStatus = 3;
+        } else {
+            require(stays[stayId].guestStatus == 1, "guestStatus != 1");
+            stays[stayId].guestStatus = 3;
+        }
+    }
+
+    function returnStayNFT(uint256 tokenId) public whenNotPaused {
         require(msg.sender == ownerOf(tokenId), "Cannot return a stay you do not own.");
         require(tokenToStayMap[tokenId] > 0, "No stay associated with this NFT.");
 
@@ -233,6 +361,32 @@ contract StayManager is ERC721URIStorage, Ownable {
                 stays[stayId].guestStatus = 2;
             }
         }
+    }
+
+    function adjudicate(uint256 stayId, uint256 hostPayment, uint256 guestPayment) public onlyAdjudicator whenNotPaused {
+        require(_stayIdSet.contains(stayId), "Cannot adjudicate a nonexistent stay.");
+        // require(stays[stayId].hostStatus == 3 || stays[stayId].guestStatus == 3, "Either host or guest must have submitted for adjudication.");
+        uint256 payment = stays[stayId].payment;
+        uint256 securityDeposit = stays[stayId].securityDeposit;
+        uint256 fee = _feePercent * payment / 100;
+        uint256 totalAvailable = payment + securityDeposit - fee;
+        require(totalAvailable >= (hostPayment + guestPayment), "Cannot pay out more than payment+security deposit less fees");
+
+        _usdcContract.safeTransfer(stays[stayId].host, hostPayment);
+        _usdcContract.safeTransfer(stays[stayId].guest, guestPayment);
+
+        _totalFeeBalance += fee;
+        delete tokenToStayMap[stays[stayId].hstay];
+        delete tokenToStayMap[stays[stayId].gstay];
+
+        if(stays[stayId].hostStatus == 3) {
+            _burn(stays[stayId].hstay);
+        }
+
+        if(stays[stayId].guestStatus == 3) {
+            _burn(stays[stayId].gstay);
+        }
+        _delist(stayId); 
     }
 
     function _closeOut(uint256 stayId) internal {

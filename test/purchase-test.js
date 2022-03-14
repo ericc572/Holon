@@ -28,7 +28,7 @@ describe.only("purchase", function () {
     
     requiredDeposit = ethers.utils.parseUnits("1", 18);
     fee = 5;
-    contract = await k.deploy(requiredDeposit, fee);
+    contract = await k.deploy(requiredDeposit, fee, ["0x32984c4e2B8d582771ADd9EC3FA219D07ca43F39"], '0xe11a86849d99f524cac3e7a0ec1241828e332c62');
 
     // Mimic test host account
     await hre.network.provider.request({

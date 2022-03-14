@@ -1,4 +1,9 @@
 {
     "requiredDeposit": "1",
-    "feePercent": "2"
+    "feePercent": "2",
+    "usdcContract": {
+        "test": "0xe11A86849d99F524cAC3E7A0Ec1241828e332C62",
+        "prod": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+    },
+    "admin": ["0x32984c4e2B8d582771ADd9EC3FA219D07ca43F39"]
 }
